@@ -161,6 +161,12 @@ namespace CVars
 	CVarWrapper bxt_hud_stamina("bxt_hud_stamina", "0");
 	CVarWrapper bxt_hud_stamina_offset("bxt_hud_stamina_offset", "");
 	CVarWrapper bxt_hud_stamina_anchor("bxt_hud_stamina_anchor", "0.5 0");
+	CVarWrapper bxt_hud_split("bxt_hud_split", "0");
+	CVarWrapper bxt_hud_split_speed("bxt_hud_split_speed", "0");
+	CVarWrapper bxt_hud_split_offset("bxt_hud_split_offset", "");
+	CVarWrapper bxt_hud_split_anchor("bxt_hud_split_anchor", "");
+	CVarWrapper bxt_hud_split_duration("bxt_hud_split_duration", "1");
+	CVarWrapper bxt_hud_split_fadeout("bxt_hud_split_fadeout", "1.25");
 	CVarWrapper bxt_cross("bxt_cross", "0");
 	CVarWrapper bxt_cross_color("bxt_cross_color", "");
 	CVarWrapper bxt_cross_alpha("bxt_cross_alpha", "");
@@ -183,6 +189,13 @@ namespace CVars
 	CVarWrapper bxt_show_bullets_enemy("bxt_show_bullets_enemy", "0");
 	CVarWrapper bxt_anglespeed_cap("bxt_anglespeed_cap", "1");
 	CVarWrapper bxt_speed_scaling("bxt_speed_scaling", "1");
+	CVarWrapper bxt_show_splits("bxt_show_splits", "1");
+	CVarWrapper bxt_splits_color("bxt_splits_color", "");
+	CVarWrapper bxt_splits_print("bxt_splits_print", "1");
+	CVarWrapper bxt_splits_print_times_at_end("bxt_splits_print_times_at_end", "1");
+	CVarWrapper bxt_splits_autorecord_on_first_split("bxt_splits_autorecord_on_first_split", "");
+	CVarWrapper bxt_splits_start_timer_on_first_split("bxt_splits_start_timer_on_first_split", "0");
+	CVarWrapper bxt_splits_end_on_last_split("bxt_splits_end_on_last_split", "0");
 
 	const std::vector<CVarWrapper*> allCVars =
 	{
@@ -339,6 +352,12 @@ namespace CVars
 		&bxt_hud_stamina,
 		&bxt_hud_stamina_offset,
 		&bxt_hud_stamina_anchor,
+		&bxt_hud_split,
+		&bxt_hud_split_speed,
+		&bxt_hud_split_offset,
+		&bxt_hud_split_anchor,
+		&bxt_hud_split_duration,
+		&bxt_hud_split_fadeout,
 		&bxt_cross,
 		&bxt_cross_color,
 		&bxt_cross_alpha,
@@ -359,5 +378,12 @@ namespace CVars
 		&bxt_viewmodel_bob_angled,
 		&bxt_show_bullets,
 		&bxt_show_bullets_enemy,
+		&bxt_show_splits,
+		&bxt_splits_color,
+		&bxt_splits_print,
+		&bxt_splits_print_times_at_end,
+		&bxt_splits_autorecord_on_first_split,
+		&bxt_splits_start_timer_on_first_split,
+		&bxt_splits_end_on_last_split,
 	};
 }

@@ -276,6 +276,12 @@ namespace CVars
 	extern CVarWrapper bxt_hud_stamina;
 	extern CVarWrapper bxt_hud_stamina_offset;
 	extern CVarWrapper bxt_hud_stamina_anchor;
+	extern CVarWrapper bxt_hud_split;
+	extern CVarWrapper bxt_hud_split_speed;
+	extern CVarWrapper bxt_hud_split_offset;
+	extern CVarWrapper bxt_hud_split_anchor;
+	extern CVarWrapper bxt_hud_split_duration;
+	extern CVarWrapper bxt_hud_split_fadeout;
 	extern CVarWrapper bxt_cross;
 	extern CVarWrapper bxt_cross_color;
 	extern CVarWrapper bxt_cross_alpha;
@@ -296,6 +302,13 @@ namespace CVars
 	extern CVarWrapper bxt_viewmodel_bob_angled;
 	extern CVarWrapper bxt_show_bullets;
 	extern CVarWrapper bxt_show_bullets_enemy;
+	extern CVarWrapper bxt_show_splits;
+	extern CVarWrapper bxt_splits_color;
+	extern CVarWrapper bxt_splits_print;
+	extern CVarWrapper bxt_splits_print_times_at_end;
+	extern CVarWrapper bxt_splits_autorecord_on_first_split;
+	extern CVarWrapper bxt_splits_start_timer_on_first_split;
+	extern CVarWrapper bxt_splits_end_on_last_split;
 
 	extern const std::vector<CVarWrapper*> allCVars;
 }

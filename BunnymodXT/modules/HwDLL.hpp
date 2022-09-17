@@ -450,6 +450,22 @@ protected:
 	struct Cmd_BXT_TAS_Client_Load_Received_Script;
 	struct Cmd_BXT_Show_Bullets_Clear;
 	struct Cmd_BXT_Show_Bullets_Enemy_Clear;
+	struct Cmd_BXT_Split;
+	struct Cmd_BXT_Splits_Add;
+	struct Cmd_BXT_Splits_Clear;
+	struct Cmd_BXT_Splits_Delete;
+	struct Cmd_BXT_Splits_Export;
+	struct Cmd_BXT_Splits_List;
+	struct Cmd_BXT_Splits_Print_Times;
+	struct Cmd_BXT_Splits_Set_Map;
+	struct Cmd_BXT_Splits_Set_Name;
+	struct Cmd_BXT_Splits_Track_Horizontal_Speed;
+	struct Cmd_BXT_Splits_Track_Vertical_Speed;
+	struct Cmd_BXT_Splits_Track_X;
+	struct Cmd_BXT_Splits_Track_Y;
+	struct Cmd_BXT_Splits_Track_Z;
+	struct Cmd_BXT_Splits_Place_Up;
+	struct Cmd_BXT_Splits_Place_Down;
 
 	void RegisterCVarsAndCommandsIfNeeded();
 	void InsertCommands();
@@ -464,7 +480,7 @@ protected:
 	void KeyDown(Key& btn);
 	void KeyUp(Key& btn);
 	void SaveInitialDataToDemo();
-	void UpdateCustomTriggers();
+	void UpdateCustomTriggersAndSplits();
 
 	bool registeredVarsAndCmds;
 
@@ -656,7 +672,10 @@ protected:
 		POSTRESET
 	} resetState = ResetState::NORMAL;
 
+public:
 	std::string lastLoadedMap;
+
+protected:
 	bool insideKeyEvent;
 	bool insideExec;
 	std::string execScript;
