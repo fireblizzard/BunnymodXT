@@ -378,6 +378,35 @@ public:
 	typedef void(__cdecl* _Host_Noclip_f) ();
 	_Host_Noclip_f ORIG_Host_Noclip_f;
 
+	// The client's connection state (cls.state, see cactive_t), or -1 if cls wasn't found
+	int GetClientState() const
+	{
+		return cls ? *reinterpret_cast<const int*>(cls) : -1;
+	}
+
+	// The engine's aliases, walked with ->next
+	const cmdalias_t* GetAliases() const
+	{
+		return cmd_alias;
+	}
+
+	// The engine's cvars, walked with ->next
+	cvar_t* GetCvarList() const
+	{
+		return cvar_vars ? *cvar_vars : nullptr;
+	}
+
+	// Has the engine handle a key press or release like real input, binds included
+	// Returns false if Key_Event wasn't found on this engine build
+	bool SendKeyEvent(int key, int down)
+	{
+		if (!ORIG_Key_Event)
+			return false;
+
+		HOOKED_Key_Event(key, down);
+		return true;
+	}
+
 	HLStrafe::PlayerData GetPlayerData();
 
 protected:
@@ -517,6 +546,20 @@ protected:
 	struct Cmd_BXT_Splits_Track_Z;
 	struct Cmd_BXT_Splits_Place_Up;
 	struct Cmd_BXT_Splits_Place_Down;
+	struct Cmd_BXT_Bingo_Status;
+	struct Cmd_BXT_Bingo_Hash;
+	struct Cmd_BXT_Bingo_Manifest;
+	struct Cmd_BXT_Bingo_Board;
+	struct Cmd_BXT_Bingo_Play;
+	struct Cmd_BXT_Bingo_Leave;
+	struct Cmd_BXT_Bingo_Join;
+	struct Cmd_BXT_Bingo_Set_Tile;
+	struct Cmd_BXT_Bingo_Set_Playable;
+	struct Cmd_BXT_Bingo_Set_Contesting;
+	struct Cmd_BXT_Bingo_Event;
+	struct Cmd_BXT_Bingo_Set_Single_Segment;
+	struct Cmd_BXT_Bingo_Set_Team;
+	struct Cmd_BXT_Bingo_Set_Team_Color;
 	struct Cmd_Plus_BXT_CH_Hook;
 	struct Cmd_Minus_BXT_CH_Hook;
 	struct Cmd_BXT_CH_CheckPoint_Create;

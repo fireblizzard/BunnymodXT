@@ -12,6 +12,7 @@
 #include "../hud_custom.hpp"
 #include "../triangle_drawing.hpp"
 #include "../discord_integration.hpp"
+#include "../bingo/bingo.hpp"
 #include "../helper_functions.hpp"
 #include <GL/gl.h>
 
@@ -1071,6 +1072,9 @@ void ClientDLL::RegisterCVarsAndCommands()
 		REG(bxt_hud_split_anchor);
 		REG(bxt_hud_split_duration);
 		REG(bxt_hud_split_fadeout);
+		REG(bxt_hud_bingo);
+		REG(bxt_hud_bingo_offset);
+		REG(bxt_hud_bingo_anchor);
 	}
 
 	if (ORIG_HUD_Redraw) {
@@ -1625,6 +1629,7 @@ HOOK_DEF_2(ClientDLL, void, __cdecl, HUD_Redraw, float, time, int, intermission)
 		ORIG_HUD_Redraw(time, intermission);
 
 	CustomHud::Draw(time);
+	Bingo::DrawBoard();
 }
 
 HOOK_DEF_6(ClientDLL, void, __cdecl, HUD_PostRunCmd, local_state_s*, from, local_state_s*, to, usercmd_s*, cmd, int, runfuncs, double, time, unsigned int, random_seed)
@@ -1681,6 +1686,7 @@ HOOK_DEF_1(ClientDLL, void, __cdecl, HUD_Frame, double, time)
 	SeedsQueued = 0;
 
 	discord_integration::on_frame();
+	Bingo::Frame();
 }
 
 HOOK_DEF_0(ClientDLL, void, __cdecl, HUD_DrawTransparentTriangles)
@@ -1701,6 +1707,11 @@ HOOK_DEF_0(ClientDLL, void, __cdecl, HUD_DrawTransparentTriangles)
 
 HOOK_DEF_3(ClientDLL, int, __cdecl, HUD_Key_Event, int, down, int, keynum, const char*, pszCurrentBinding)
 {
+	// This is so that binding the bingo board (show/hide) to a mouse button works,
+	// otherwise the bind won't work for closing it
+	if (!Bingo::AllowKeyEvent(pszCurrentBinding))
+		return 0;
+
 	insideKeyEvent = true;
 
 	auto rv = ORIG_HUD_Key_Event(down, keynum, pszCurrentBinding);

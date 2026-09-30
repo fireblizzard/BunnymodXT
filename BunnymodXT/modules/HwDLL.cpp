@@ -23,6 +23,7 @@
 #include "../custom_triggers.hpp"
 #include "../simulation_ipc.hpp"
 #include "../splits.hpp"
+#include "../bingo/bingo.hpp"
 #include "../helper_functions.hpp"
 
 using namespace std::literals;
@@ -5551,6 +5552,176 @@ void ChangeDeltaForBigMap(delta_s *delta)
 	}
 }
 
+struct HwDLL::Cmd_BXT_Bingo_Status
+{
+	NO_USAGE()
+
+	static void handler()
+	{
+		Bingo::PrintStatus();
+	}
+};
+
+struct HwDLL::Cmd_BXT_Bingo_Hash
+{
+	USAGE("Usage: _bxt_bingo_hash <save>\n Prints the size and SHA-256 of a save in the SAVE directory.\n");
+
+	static void handler(const char* save_name)
+	{
+		Bingo::PrintSaveHash(save_name);
+	}
+};
+
+struct HwDLL::Cmd_BXT_Bingo_Manifest
+{
+	USAGE("Usage: bxt_bingo_manifest <file>\n Loads a bingo board from a JSON file, for playing without a server. The .json extension is optional.\n");
+
+	static void handler(const char* file_name)
+	{
+		Bingo::LoadManifest(file_name);
+	}
+};
+
+struct HwDLL::Cmd_BXT_Bingo_Play
+{
+	USAGE("Usage: bxt_bingo_play <tile>\n Plays a tile of the board, by coordinate (B3) or label (OAR2). Retry with `load` and the retry save (set in bxt_bingo_retry_save or `hard` by default).\n");
+
+	static void handler(const char* tile)
+	{
+		Bingo::PlayTile(tile);
+	}
+};
+
+struct HwDLL::Cmd_BXT_Bingo_Join
+{
+	USAGE("Usage: bxt_bingo_join [code]\n Joins an online bingo game at bxt_bingo_server with the code from the game's page. Without a code it goes back to the last game. With a code while in a game, it leaves that game first.\n");
+
+	static void handler()
+	{
+		Bingo::Join("");
+	}
+
+	static void handler(const char* code)
+	{
+		Bingo::Join(code);
+	}
+};
+
+struct HwDLL::Cmd_BXT_Bingo_Leave
+{
+	NO_USAGE()
+
+	static void handler()
+	{
+		Bingo::Leave();
+	}
+};
+
+struct HwDLL::Cmd_BXT_Bingo_Board
+{
+	NO_USAGE()
+
+	static void handler()
+	{
+		Bingo::ToggleBoard();
+	}
+};
+
+struct HwDLL::Cmd_BXT_Bingo_Set_Tile
+{
+	USAGE("Usage: _bxt_bingo_set_tile <tile> <red|blue|none> [time in ms] [holder]\n Sets how a tile looks on the board, for testing the board without a server.\n");
+
+	static void handler(const char* tile, const char* owner)
+	{
+		Bingo::DebugSetTile(tile, owner, -1, "");
+	}
+
+	static void handler(const char* tile, const char* owner, int time_ms)
+	{
+		Bingo::DebugSetTile(tile, owner, time_ms, "");
+	}
+
+	static void handler(const char* tile, const char* owner, int time_ms, const char* holder)
+	{
+		Bingo::DebugSetTile(tile, owner, time_ms, holder);
+	}
+};
+
+struct HwDLL::Cmd_BXT_Bingo_Set_Playable
+{
+	USAGE("Usage: _bxt_bingo_set_playable <tile> <0|1>\n Marks a tile as playable or not, for testing the board without a server.\n");
+
+	static void handler(const char* tile, int playable)
+	{
+		Bingo::DebugSetPlayable(tile, playable != 0);
+	}
+};
+
+struct HwDLL::Cmd_BXT_Bingo_Set_Single_Segment
+{
+	USAGE("Usage: _bxt_bingo_set_single_segment <0|1>\n Makes loading any save other than the retry save end the run, for testing without a server.\n");
+
+	static void handler(int single_segment)
+	{
+		Bingo::DebugSetSingleSegment(single_segment != 0);
+	}
+};
+
+struct HwDLL::Cmd_BXT_Bingo_Set_Contesting
+{
+	USAGE("Usage: _bxt_bingo_set_contesting <tile> [red players] [blue players]\n Sets how many players of each team are running a tile, for testing the board without a server. Leave the counts out to clear it.\n");
+
+	static void handler(const char* tile)
+	{
+		Bingo::DebugSetContesting(tile, 0, 0);
+	}
+
+	static void handler(const char* tile, int red)
+	{
+		Bingo::DebugSetContesting(tile, red, 0);
+	}
+
+	static void handler(const char* tile, int red, int blue)
+	{
+		Bingo::DebugSetContesting(tile, red, blue);
+	}
+};
+
+struct HwDLL::Cmd_BXT_Bingo_Event
+{
+	USAGE("Usage: _bxt_bingo_event <capture|ally_capture|opponent_capture|contested|invalid|win>\n Shows a test message and plays that event's sound.\n");
+
+	static void handler(const char* event)
+	{
+		Bingo::DebugEvent(event);
+	}
+};
+
+struct HwDLL::Cmd_BXT_Bingo_Set_Team
+{
+	USAGE("Usage: _bxt_bingo_set_team <red|blue|none>\n Sets your team, for testing the board colors without a server.\n");
+
+	static void handler(const char* team)
+	{
+		Bingo::DebugSetTeam(team);
+	}
+};
+
+struct HwDLL::Cmd_BXT_Bingo_Set_Team_Color
+{
+	USAGE("Usage: _bxt_bingo_set_team_color <red|blue> [color]\n Sets the color a team picked on the website, as \"R G B\" or #rrggbb, for testing without a server. Leave the color out to clear it.\n");
+
+	static void handler(const char* team)
+	{
+		Bingo::DebugSetTeamColor(team, "");
+	}
+
+	static void handler(const char* team, const char* color)
+	{
+		Bingo::DebugSetTeamColor(team, color);
+	}
+};
+
 struct HwDLL::Cmd_BXT_Enable_Big_Map
 {
 	USAGE("\
@@ -5763,6 +5934,28 @@ void HwDLL::RegisterCVarsAndCommandsIfNeeded()
 	RegisterCVar(CVars::bxt_autopause);
 	RegisterCVar(CVars::bxt_bhopcap);
 	RegisterCVar(CVars::bxt_interprocess_enable);
+	RegisterCVar(CVars::bxt_bingo_server);
+	RegisterCVar(CVars::bxt_bingo_retry_save);
+	RegisterCVar(CVars::bxt_bingo_color_my_team);
+	RegisterCVar(CVars::bxt_bingo_color_other_team);
+	RegisterCVar(CVars::bxt_bingo_color_unowned);
+	RegisterCVar(CVars::bxt_bingo_color_current);
+	RegisterCVar(CVars::bxt_bingo_color_selected);
+	RegisterCVar(CVars::bxt_bingo_color_time);
+	RegisterCVar(CVars::bxt_bingo_show_triggers);
+	RegisterCVar(CVars::bxt_bingo_color_start_trigger);
+	RegisterCVar(CVars::bxt_bingo_color_end_trigger);
+	RegisterCVar(CVars::bxt_bingo_triggers_fill_alpha);
+	RegisterCVar(CVars::bxt_bingo_triggers_edge_alpha);
+	RegisterCVar(CVars::bxt_bingo_messages);
+	RegisterCVar(CVars::bxt_bingo_sound_volume);
+	RegisterCVar(CVars::bxt_bingo_sound_capture);
+	RegisterCVar(CVars::bxt_bingo_sound_ally_capture);
+	RegisterCVar(CVars::bxt_bingo_sound_opponent_capture);
+	RegisterCVar(CVars::bxt_bingo_sound_contested);
+	RegisterCVar(CVars::bxt_bingo_sound_invalid);
+	RegisterCVar(CVars::bxt_bingo_sound_win);
+	RegisterCVar(CVars::_bxt_bingo_debug_input);
 	RegisterCVar(CVars::bxt_fade_remove);
 	RegisterCVar(CVars::bxt_shake_remove);
 	RegisterCVar(CVars::bxt_skybox_remove);
@@ -5983,6 +6176,31 @@ void HwDLL::RegisterCVarsAndCommandsIfNeeded()
 	wrapper::Add<Cmd_BXT_Splits_Place_Down, Handler<>, Handler<const char*>>("+bxt_splits_place");
 	wrapper::Add<Cmd_BXT_Splits_Place_Up, Handler<>, Handler<const char*>>("-bxt_splits_place");
 	wrapper::Add<Cmd_BXT_Enable_Big_Map, Handler<>>("bxt_enable_big_map");
+
+	wrapper::Add<Cmd_BXT_Bingo_Status, Handler<>>("bxt_bingo_status");
+	wrapper::Add<Cmd_BXT_Bingo_Hash, Handler<const char*>>("_bxt_bingo_hash");
+	wrapper::Add<Cmd_BXT_Bingo_Manifest, Handler<const char*>>("bxt_bingo_manifest");
+	wrapper::Add<Cmd_BXT_Bingo_Board, Handler<>>("bxt_bingo_board");
+	wrapper::Add<Cmd_BXT_Bingo_Play, Handler<const char*>>("bxt_bingo_play");
+	wrapper::Add<Cmd_BXT_Bingo_Leave, Handler<>>("bxt_bingo_leave");
+	wrapper::Add<Cmd_BXT_Bingo_Join, Handler<>, Handler<const char*>>("bxt_bingo_join");
+	wrapper::Add<
+		Cmd_BXT_Bingo_Set_Tile,
+		Handler<const char*, const char*>,
+		Handler<const char*, const char*, int>,
+		Handler<const char*, const char*, int, const char*>>("_bxt_bingo_set_tile");
+	wrapper::Add<Cmd_BXT_Bingo_Set_Playable, Handler<const char*, int>>("_bxt_bingo_set_playable");
+	wrapper::Add<
+		Cmd_BXT_Bingo_Set_Contesting,
+		Handler<const char*>,
+		Handler<const char*, int>,
+		Handler<const char*, int, int>>("_bxt_bingo_set_contesting");
+	wrapper::Add<Cmd_BXT_Bingo_Event, Handler<const char*>>("_bxt_bingo_event");
+	wrapper::Add<Cmd_BXT_Bingo_Set_Single_Segment, Handler<int>>("_bxt_bingo_set_single_segment");
+	wrapper::Add<Cmd_BXT_Bingo_Set_Team, Handler<const char*>>("_bxt_bingo_set_team");
+	wrapper::Add<Cmd_BXT_Bingo_Set_Team_Color, Handler<const char*>, Handler<const char*, const char*>>("_bxt_bingo_set_team_color");
+
+	Bingo::Init();
 }
 
 void HwDLL::InsertCommands()
@@ -7451,6 +7669,7 @@ void HwDLL::UpdateCustomTriggersAndSplits()
 
 	CustomTriggers::Update(pl->v.origin, (pl->v.flags & FL_DUCKING) != 0);
 	Splits::Update(pl->v.origin, (pl->v.flags & FL_DUCKING) != 0);
+	Bingo::UpdateTriggers(pl->v.origin, (pl->v.flags & FL_DUCKING) != 0);
 }
 
 void HwDLL::FreeCamTick()
@@ -7819,8 +8038,12 @@ HOOK_DEF_1(HwDLL, void, __cdecl, Cbuf_AddText, const char*, text)
 	// (because something might have been added in the VGUI handler)
 	// but until something like that comes up it should be fine.
 	if (insideKeyEvent && !ClientDLL::GetInstance().IsInsideKeyEvent()
-		&& !(text[0] == '\n' && text[1] == '\0'))
+		&& !(text[0] == '\n' && text[1] == '\0')) {
 		RuntimeData::Add(RuntimeData::BoundCommand { text });
+
+		if (!Bingo::OnPlayerCommand(text))
+			return;
+	}
 
 	ORIG_Cbuf_AddText(text);
 }

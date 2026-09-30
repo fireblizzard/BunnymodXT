@@ -14,6 +14,7 @@
 #include "../runtime_data.hpp"
 #include "../custom_triggers.hpp"
 #include "../splits.hpp"
+#include "../bingo/bingo.hpp"
 #include "../shared.hpp"
 
 #define ALERT(at, format, ...) pEngfuncs->pfnAlertMessage(at, const_cast<char*>(format), ##__VA_ARGS__)
@@ -2310,6 +2311,8 @@ HOOK_DEF_4(ServerDLL, void, __fastcall, CBaseMonster__Killed, void*, thisptr, in
 			if (!std::strcmp(classname, "monster_gargantua") && ClientDLL::GetInstance().DoesGameDirMatch("tetsu0_cot")) {
 				DoAutoStopTasks();
 			}
+
+			Bingo::OnMonsterKilled(pev, classname, pevAttacker);
 		}
 	}
 
@@ -2405,6 +2408,8 @@ void ServerDLL::OnMultiManagerFired(const char *targetname)
 
 void ServerDLL::DoAutoStopTasks()
 {
+	Bingo::OnGameEnd();
+
 	if (CVars::bxt_timer_autostop.GetBool())
 	{
 		if (CustomHud::GetCountingTime())
@@ -2887,6 +2892,7 @@ HOOK_DEF_2(ServerDLL, void, __cdecl, PM_Move, struct playermove_s*, ppmove, int,
 	 * This is not always the case but it is a good approximation.
 	 */
 	CustomTriggers::Update(start_origin, Vector(origin), (*flags & FL_DUCKING) != 0);
+	Bingo::UpdateTriggers(start_origin, Vector(origin), (*flags & FL_DUCKING) != 0);
 
 	if (*movetype == MOVETYPE_NOCLIP && ch_noclip_vel != 0.f) {
 		*maxspeed = ch_noclip_vel_prev_maxspeed;

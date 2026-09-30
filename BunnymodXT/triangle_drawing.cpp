@@ -10,6 +10,7 @@
 #include "modules.hpp"
 
 #include "hud_custom.hpp"
+#include "bingo/bingo.hpp"
 
 namespace TriangleDrawing
 {
@@ -2395,6 +2396,7 @@ namespace TriangleDrawing
 		DrawBulletsEnemyTrace(pTriAPI);
 		DrawBulletsPlayerTrace(pTriAPI);
 		DrawSplits(pTriAPI);
+		Bingo::DrawTriggers(pTriAPI);
 
 		DrawTASEditor(pTriAPI);
 		ResetTASEditorCommands();

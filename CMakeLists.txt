@@ -138,6 +138,7 @@ set (WINDOWS_FILES
 	BunnymodXT/Windows/conutils.cpp
 	BunnymodXT/Windows/dllmain.cpp
 	BunnymodXT/Windows/interprocess.cpp
+	BunnymodXT/bingo/Windows/bingo_platform.cpp
 	BunnymodXT/Windows/conutils.hpp)
 
 set (LINUX_FILES
@@ -145,7 +146,8 @@ set (LINUX_FILES
 	SPTLib/Linux/MemUtils_linux.cpp
 	BunnymodXT/modules/PMSharedHooks_linux.cpp
 	BunnymodXT/Linux/main_linux.cpp
-	BunnymodXT/Linux/interprocess.cpp)
+	BunnymodXT/Linux/interprocess.cpp
+	BunnymodXT/bingo/Linux/bingo_platform.cpp)
 
 set (HEADER_FILES
 	SPTLib/IHookableModule.hpp
@@ -160,6 +162,9 @@ set (HEADER_FILES
 	BunnymodXT/modules/ClientDLL.hpp
 	BunnymodXT/modules/ServerDLL.hpp
 	BunnymodXT/modules/SDL.hpp
+	BunnymodXT/bingo/bingo.hpp
+	BunnymodXT/bingo/bingo_internal.hpp
+	BunnymodXT/bingo/bingo_rules.hpp
 	BunnymodXT/bunnymodxt.hpp
 	BunnymodXT/cmd_wrapper.hpp
 	BunnymodXT/custom_triggers.hpp
@@ -195,6 +200,15 @@ set (SOURCE_FILES
 	BunnymodXT/modules/ClientDLL.cpp
 	BunnymodXT/modules/ServerDLL.cpp
 	BunnymodXT/modules/SDL.cpp
+	BunnymodXT/bingo/bingo.cpp
+	BunnymodXT/bingo/bingo_draw.cpp
+	BunnymodXT/bingo/bingo_files.cpp
+	BunnymodXT/bingo/bingo_input.cpp
+	BunnymodXT/bingo/bingo_manifest.cpp
+	BunnymodXT/bingo/bingo_net.cpp
+	BunnymodXT/bingo/bingo_rules.cpp
+	BunnymodXT/bingo/bingo_run.cpp
+	BunnymodXT/bingo/bingo_saves.cpp
 	BunnymodXT/custom_triggers.cpp
 	BunnymodXT/cvars.cpp
 	BunnymodXT/discord_integration.cpp
@@ -246,7 +260,7 @@ if (NOT MSVC)
 	target_link_libraries (BunnymodXT pthread rt GL)
 else()
 	add_dependencies (BunnymodXT MinHook)
-	target_link_libraries (BunnymodXT opengl32)
+	target_link_libraries (BunnymodXT opengl32 bcrypt winhttp)
 endif ()
 
 install (TARGETS BunnymodXT)

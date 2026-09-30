@@ -9,6 +9,7 @@
 #include "opengl_utils.hpp"
 #include "helper_functions.hpp"
 #include "splits.hpp"
+#include "bingo/bingo.hpp"
 
 #include <GL/gl.h>
 
@@ -1746,6 +1747,16 @@ namespace CustomHud
 		}
 	}
 
+	static void DrawBingo(float flTime)
+	{
+		if (CVars::bxt_hud_bingo.GetBool())
+		{
+			int x, y;
+			GetPosition(CVars::bxt_hud_bingo_offset, CVars::bxt_hud_bingo_anchor, &x, &y, 10, 10);
+			Bingo::DrawMiniBoard(x, y);
+		}
+	}
+
 	void Draw(float flTime)
 	{
 		if (!CVars::bxt_hud.GetBool())
@@ -1780,6 +1791,7 @@ namespace CustomHud
 		DrawCrosshair(flTime);
 		DrawStamina(flTime);
 		DrawSplit(flTime);
+		DrawBingo(flTime);
 
 		receivedAccurateInfo = false;
 		frame_bulk_selected = false;

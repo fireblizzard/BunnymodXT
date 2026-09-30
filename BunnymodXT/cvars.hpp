@@ -200,6 +200,9 @@
 	X(bxt_hud_split_anchor, "") \
 	X(bxt_hud_split_duration, "1") \
 	X(bxt_hud_split_fadeout, "5") \
+	X(bxt_hud_bingo, "1") \
+	X(bxt_hud_bingo_offset, "") \
+	X(bxt_hud_bingo_anchor, "0.01 0.6") \
 	X(bxt_cross, "0") \
 	X(bxt_cross_color, "") \
 	X(bxt_cross_alpha, "") \
@@ -232,6 +235,28 @@
 	X(bxt_splits_autorecord_on_first_split, "") \
 	X(bxt_splits_start_timer_on_first_split, "0") \
 	X(bxt_splits_end_on_last_split, "0") \
+	X(bxt_bingo_server, "") \
+	X(bxt_bingo_retry_save, "hard") \
+	X(bxt_bingo_color_my_team, "") \
+	X(bxt_bingo_color_other_team, "") \
+	X(bxt_bingo_color_unowned, "40 40 40") \
+	X(bxt_bingo_color_current, "255 225 40") \
+	X(bxt_bingo_color_selected, "255 255 255") \
+	X(bxt_bingo_color_time, "") \
+	X(bxt_bingo_show_triggers, "1") \
+	X(bxt_bingo_color_start_trigger, "255 105 180") \
+	X(bxt_bingo_color_end_trigger, "255 200 40") \
+	X(bxt_bingo_triggers_fill_alpha, "0.04") \
+	X(bxt_bingo_triggers_edge_alpha, "0.2") \
+	X(bxt_bingo_messages, "1") \
+	X(bxt_bingo_sound_volume, "1") \
+	X(bxt_bingo_sound_capture, "vox/woop") \
+	X(bxt_bingo_sound_ally_capture, "fvox/bell") \
+	X(bxt_bingo_sound_opponent_capture, "fvox/blip") \
+	X(bxt_bingo_sound_contested, "fvox/danger") \
+	X(bxt_bingo_sound_invalid, "fvox/beep") \
+	X(bxt_bingo_sound_win, "bingo/firework") \
+	X(_bxt_bingo_debug_input, "0") \
 	X(bxt_ch_hook_speed, "869") \
 	X(bxt_ch_checkpoint_with_vel, "1") \
 	X(bxt_ch_checkpoint_onground_only, "0") \
@@ -262,6 +287,9 @@ public:
 	unsigned GetUint() const;
 	float GetFloat() const;
 	std::string GetString() const;
+
+	// The value BXT defines the cvar with, or nullptr for cvars BXT only finds
+	const char* GetDefault() const;
 
 	// Only use before registering!
 	void Set(const char* string);
@@ -349,6 +377,11 @@ inline std::string CVarWrapper::GetString() const
 	if (!m_CVar)
 		return std::string();
 	return std::string(m_CVar->string);
+}
+
+inline const char* CVarWrapper::GetDefault() const
+{
+	return m_Reference ? nullptr : m_String;
 }
 
 inline void CVarWrapper::Set(const char* string)
