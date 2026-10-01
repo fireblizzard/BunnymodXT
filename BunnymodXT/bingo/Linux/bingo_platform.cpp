@@ -103,5 +103,37 @@ namespace Bingo
 		{
 			return std::make_unique<UnsupportedFileSync>(jobs.size());
 		}
+
+		namespace
+		{
+			// Reports the first file as failed, there are no uploads on this build
+			class UnsupportedFileUpload : public FileUpload
+			{
+			public:
+				bool Poll(UploadEvent& event) override
+				{
+					if (reported)
+						return false;
+
+					reported = true;
+					event = UploadEvent();
+					event.text = "uploads aren't supported on this build yet";
+					return true;
+				}
+
+			private:
+				bool reported = false;
+			};
+		}
+
+		std::unique_ptr<FileUpload> UploadFiles(std::vector<UploadJob> jobs)
+		{
+			return std::make_unique<UnsupportedFileUpload>();
+		}
+
+		std::string ModulePath()
+		{
+			return {};
+		}
 	}
 }

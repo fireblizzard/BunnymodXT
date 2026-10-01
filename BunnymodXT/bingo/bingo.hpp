@@ -37,6 +37,10 @@ namespace Bingo
 	// Returns false when the engine must not run it (a command blocked by a handicap)
 	bool OnPlayerCommand(const char* text);
 
+	// Call from the stop, record, bxt_record and bxt_autorecord commands before they run, with the demo's name
+	// Returns false when the command must not run, as bingo is recording an online run
+	bool AllowDemoCommand(const char* command, const char* demo_name);
+
 	// Call from HUD_Key_Event, returns false when the engine must skip the key's bind
 	// Only filters the mouse buttons the board hands to the engine (see the input rules below)
 	bool AllowKeyEvent(const char* binding);
@@ -189,5 +193,38 @@ namespace Bingo
 		// A file is there when its size and SHA-256 match. A download is checked the same way
 		// before it replaces anything, and is tried twice
 		std::unique_ptr<FileSync> SyncFiles(std::vector<FileJob> jobs);
+
+		// A file sent to the server with an HTTP PUT
+		struct UploadJob
+		{
+			std::string url;                  // http:// or https://
+			std::string path;
+			std::vector<std::string> headers; // extra request headers ("Name: value")
+		};
+
+		// How one of the uploads went
+		struct UploadEvent
+		{
+			bool ok = false;
+			size_t index = 0; // in the list given to UploadFiles
+			std::string text; // why it failed
+		};
+
+		// Sends files one at a time on a worker thread, and stops at the first one that fails
+		// There's one event per file tried. Dropping it stops the uploads
+		// Only used from the game thread
+		class FileUpload
+		{
+		public:
+			virtual ~FileUpload() = default;
+
+			// The next event, or false if there's none yet
+			virtual bool Poll(UploadEvent& event) = 0;
+		};
+
+		std::unique_ptr<FileUpload> UploadFiles(std::vector<UploadJob> jobs);
+
+		// The path of BXT's own DLL, or an empty string if it can't be found
+		std::string ModulePath();
 	}
 }

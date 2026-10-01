@@ -4,6 +4,7 @@
 
 #include "../modules/ClientDLL.hpp"
 #include "../modules/HwDLL.hpp"
+#include "../git_revision.hpp"
 #include "../hud_custom.hpp"
 #include "bingo_internal.hpp"
 
@@ -134,20 +135,84 @@ namespace Bingo
 				CancelAttempt(violation.c_str());
 		}
 
-		// The timer starts: online, the server starts timing the run too
+		// The timer starts. When online the server starts timing the run too
 		void BeginRun()
 		{
+			auto& hw = HwDLL::GetInstance();
 			attempt.state = AttemptState::RUNNING;
 			attempt.started_at = std::chrono::steady_clock::now();
 			attempt.reported = false;
-			attempt.id.clear();
 			attempt.kills = 0;
+			attempt.frames = 0;
+			attempt.stopped_time = 0;
+			attempt.server_time = 0;
+			attempt.last_server_time = hw.IsActive() ? hw.GetTime() : -1;
+			attempt.last_frame = attempt.started_at;
 			StartTimer();
 
 			if (Online()) {
-				attempt.id = NewAttemptId();
+				if (attempt.id.empty())
+					attempt.id = NewAttemptId();
 				SendAttemptStarted();
+
+				const auto& tile = manifest.tiles[current_tile];
+				AddDemoInfo("start", [&](JsonWriter& w) {
+					w.Key("game_id");
+					w.String(net.game_id.c_str());
+					w.Key("server");
+					w.String(net.url.c_str());
+					w.Key("steamid64");
+					w.String(net.steamid64.c_str());
+					w.Key("name");
+					w.String(net.name.c_str());
+					w.Key("team");
+					w.String(TeamName(my_team));
+					w.Key("tile");
+					w.String(TileId(current_tile).c_str());
+					w.Key("label");
+					w.String(tile.label.c_str());
+					w.Key("save_sha256");
+					w.String(tile.save_sha256.c_str());
+					w.Key("manifest_hash");
+					w.String(manifest.hash.c_str());
+					w.Key("run_type");
+					w.String(RunType().c_str());
+					w.Key("handicaps");
+					w.String(Handicaps().c_str());
+					w.Key("match_clock_ms");
+					w.Int64(MatchClockMs());
+					w.Key("bxt_version");
+					w.String(Git::GetRevision());
+					w.Key("bxt_dll_sha256");
+					w.String(DllSha256().c_str());
+				});
 			}
+		}
+
+		// Time the game doesn't run, in loading screens or paused, is counted apart
+		void CountClocks()
+		{
+			if (attempt.state != AttemptState::RUNNING)
+				return;
+
+			auto& hw = HwDLL::GetInstance();
+			auto now = std::chrono::steady_clock::now();
+			double elapsed = std::chrono::duration<double>(now - attempt.last_frame).count();
+			attempt.last_frame = now;
+
+			if (hw.GetClientState() != ca_active || !hw.IsActive() || hw.IsPaused()) {
+				attempt.stopped_time += elapsed;
+				attempt.last_server_time = -1;
+				return;
+			}
+
+			++attempt.frames;
+
+			// A load sets the server's time to the save's, which isn't time that went by
+			double time = hw.GetTime();
+			if (attempt.last_server_time >= 0 && time > attempt.last_server_time && time - attempt.last_server_time < 1)
+				attempt.server_time += time - attempt.last_server_time;
+			attempt.last_server_time = time;
 		}
 
 		// The save loaded, so the tile's triggers go live
@@ -206,10 +271,28 @@ namespace Bingo
 			if (attempt.state != AttemptState::RUNNING)
 				return;
 
+			CountClocks();
 			attempt.state = AttemptState::FINISHED;
 			StopTimer();
 
 			int time_ms = TimerMs();
+
+			// The demo of a run with a time stays, whatever the time does
+			AddDemoInfo("finish", [&](JsonWriter& w) {
+				w.Key("time_ms");
+				w.Int(time_ms);
+				w.Key("server_time_ms");
+				w.Int64(std::llround(attempt.server_time * 1000));
+				w.Key("frames");
+				w.Int(attempt.frames);
+				w.Key("real_ms");
+				w.Int64(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - attempt.started_at).count());
+				w.Key("stopped_ms");
+				w.Int64(std::llround(attempt.stopped_time * 1000));
+				w.Key("invalid_reason");
+				w.String(attempt.invalid_reason.c_str());
+			});
+			EndDemo(true);
 			auto& tile = manifest.tiles[current_tile];
 			auto team = OfflineTeam();
 
@@ -286,6 +369,10 @@ namespace Bingo
 				}
 			}
 
+			// The last try's demo goes unless it reached the end
+			if (attempt.state != AttemptState::FINISHED)
+				EndDemo(false);
+
 			attempt.state = AttemptState::LOADING;
 			ResetTimer();
 			attempt.saw_loading = false;
@@ -295,7 +382,15 @@ namespace Bingo
 			run_saves.clear();
 			attempt.invalid_reason.clear();
 			attempt.id.clear();
+			attempt.demo.clear();
+			attempt.nonce.clear();
 			attempt.reported = false;
+
+			// Online, the attempt is recorded from this load on
+			if (Online()) {
+				attempt.id = NewAttemptId();
+				StartDemo();
+			}
 
 			// Saves from the last try don't belong to this one
 			newest_save = retry_save;
@@ -333,8 +428,10 @@ namespace Bingo
 
 		void WrappedLoad()
 		{
+			SetMapEnding(true);
 			BeforeLoad(SaveNameArg());
 			original_load();
+			SetMapEnding(false);
 		}
 
 		// Hashes before and after the engine saves, as a failed save (e.g. while dead) leaves the old file
@@ -383,8 +480,10 @@ namespace Bingo
 		// Commands typed during a run that would skip part of the segment
 		void WrappedMap()
 		{
+			SetMapEnding(true);
 			CancelAttempt("used map");
 			original_map();
+			SetMapEnding(false);
 		}
 
 		void WrappedChangelevel()
@@ -415,8 +514,10 @@ namespace Bingo
 
 		void WrappedRestart()
 		{
+			SetMapEnding(true);
 			CancelAttempt("used restart");
 			original_restart();
+			SetMapEnding(false);
 		}
 	}
 
@@ -455,6 +556,7 @@ namespace Bingo
 
 		attempt.state = AttemptState::IDLE;
 		StopTimer();
+		EndDemo(false);
 
 		auto text = "Run of " + TileName(current_tile) + " cancelled: " + reason + ".";
 		if (notify)
@@ -579,6 +681,7 @@ namespace Bingo
 	// Follows the attempt's loading, and checks the rules and handicaps
 	void RunFrame()
 	{
+		CountClocks();
 		UpdateAttempt();
 		// Before the rules check them
 		static const Rules::Ruleset no_rules;

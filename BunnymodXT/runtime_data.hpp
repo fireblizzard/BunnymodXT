@@ -67,6 +67,11 @@ namespace RuntimeData
 		int flags;
 	};
 
+	// What a bingo run is (the game, the tile, the attempt, the server's nonce), as a JSON object
+	struct BingoInfo {
+		std::string json;
+	};
+
 	using Data = boost::variant<VersionInfo,
 	                            CVarValues,
 	                            Time,
@@ -80,7 +85,8 @@ namespace RuntimeData
 	                            Edicts,
 	                            PlayerHealth,
 	                            SplitMarker,
-	                            Flags>;
+	                            Flags,
+	                            BingoInfo>;
 
 	void Add(Data data);
 	void Clear();

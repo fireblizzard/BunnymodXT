@@ -288,6 +288,7 @@ namespace Bingo
 		++frame_count;
 
 		NetFrame();
+		DemosFrame();
 
 		// The player's own retry save is still backed up if the game closed while playing a tile
 		static bool checked_backup = false;

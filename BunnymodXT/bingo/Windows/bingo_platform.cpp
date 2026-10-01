@@ -787,5 +787,186 @@ namespace Bingo
 			std::thread(SyncLoop, state, std::move(jobs)).detach();
 			return std::make_unique<WinFileSync>(state);
 		}
+
+		namespace
+		{
+			// Time limits for an upload
+			constexpr int UPLOAD_CONNECT_TIMEOUT_MS = 10000;
+			constexpr int UPLOAD_SEND_TIMEOUT_MS = 60000;
+
+			// What the game thread and the worker share
+			struct UploadState
+			{
+				std::mutex mutex;
+				std::deque<UploadEvent> events;
+				std::atomic<bool> stopped{ false };
+
+				void Push(bool ok, size_t index, std::string text = {})
+				{
+					UploadEvent event;
+					event.ok = ok;
+					event.index = index;
+					event.text = std::move(text);
+
+					std::lock_guard<std::mutex> lock(mutex);
+					events.push_back(std::move(event));
+				}
+			};
+
+			// Sends the file with a PUT. Returns why it failed, or an empty string
+			std::string Put(HINTERNET session, const UploadJob& job, const std::atomic<bool>& stopped)
+			{
+				uint64_t size = 0;
+				if (!FileSize(job.path, size))
+					return "can't find " + job.path;
+				if (size > 0xffffffffULL)
+					return job.path + " is too big";
+
+				std::ifstream in(job.path, std::ios::binary);
+				if (!in)
+					return "can't read " + job.path;
+
+				auto wide_url = Widen(job.url);
+				URL_COMPONENTS parts = {};
+				parts.dwStructSize = sizeof(parts);
+				parts.dwSchemeLength = static_cast<DWORD>(-1);
+				parts.dwHostNameLength = static_cast<DWORD>(-1);
+				parts.dwUrlPathLength = static_cast<DWORD>(-1);
+				parts.dwExtraInfoLength = static_cast<DWORD>(-1);
+				if (!WinHttpCrackUrl(wide_url.c_str(), 0, 0, &parts))
+					return "can't read the address " + job.url;
+
+				auto host = UrlPart(parts.lpszHostName, parts.dwHostNameLength);
+				auto request_path = UrlPart(parts.lpszUrlPath, parts.dwUrlPathLength) + UrlPart(parts.lpszExtraInfo, parts.dwExtraInfoLength);
+
+				std::wstring headers;
+				for (const auto& header : job.headers)
+					headers += Widen(header) + L"\r\n";
+				headers += L"Content-Type: application/octet-stream\r\n";
+
+				std::string error;
+				HINTERNET connection = WinHttpConnect(session, host.c_str(), parts.nPort, 0);
+				HINTERNET request = connection
+					? WinHttpOpenRequest(connection, L"PUT", request_path.c_str(), nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, parts.nScheme == INTERNET_SCHEME_HTTPS ? WINHTTP_FLAG_SECURE : 0)
+					: nullptr;
+
+				[&] {
+					if (!request || !WinHttpSendRequest(request, headers.c_str(), static_cast<DWORD>(-1), WINHTTP_NO_REQUEST_DATA, 0, static_cast<DWORD>(size), 0)) {
+						error = "can't reach the server (error " + std::to_string(GetLastError()) + ")";
+						return;
+					}
+
+					std::vector<char> buffer(64 * 1024);
+					uint64_t sent = 0;
+					while (sent < size) {
+						if (stopped) {
+							error = "stopped";
+							return;
+						}
+
+						auto count = static_cast<DWORD>(std::min<uint64_t>(buffer.size(), size - sent));
+						if (!in.read(buffer.data(), count)) {
+							error = "can't read " + job.path;
+							return;
+						}
+
+						DWORD written = 0;
+						if (!WinHttpWriteData(request, buffer.data(), count, &written) || written != count) {
+							error = "the upload broke off (error " + std::to_string(GetLastError()) + ")";
+							return;
+						}
+						sent += count;
+					}
+
+					if (!WinHttpReceiveResponse(request, nullptr)) {
+						error = "the server didn't answer (error " + std::to_string(GetLastError()) + ")";
+						return;
+					}
+
+					DWORD status = 0, status_size = sizeof(status);
+					WinHttpQueryHeaders(request, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &status, &status_size, WINHTTP_NO_HEADER_INDEX);
+					if (status < 200 || status >= 300)
+						error = "the server answered " + std::to_string(status);
+				}();
+
+				if (request)
+					WinHttpCloseHandle(request);
+				if (connection)
+					WinHttpCloseHandle(connection);
+				return error;
+			}
+
+			// Goes through the files in order. Runs on its own thread
+			void UploadLoop(std::shared_ptr<UploadState> state, std::vector<UploadJob> jobs)
+			{
+				HINTERNET session = WinHttpOpen(L"BunnymodXT bingo", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+				if (!session) {
+					state->Push(false, 0, "WinHttpOpen failed (error " + std::to_string(GetLastError()) + ")");
+					return;
+				}
+				WinHttpSetTimeouts(session, UPLOAD_CONNECT_TIMEOUT_MS, UPLOAD_CONNECT_TIMEOUT_MS, UPLOAD_SEND_TIMEOUT_MS, UPLOAD_SEND_TIMEOUT_MS);
+
+				for (size_t i = 0; i < jobs.size() && !state->stopped; ++i) {
+					auto error = Put(session, jobs[i], state->stopped);
+					if (state->stopped)
+						break;
+
+					bool ok = error.empty();
+					state->Push(ok, i, std::move(error));
+					if (!ok)
+						break;
+				}
+
+				WinHttpCloseHandle(session);
+			}
+
+			class WinFileUpload : public FileUpload
+			{
+			public:
+				explicit WinFileUpload(std::shared_ptr<UploadState> state)
+					: state(std::move(state))
+				{
+				}
+
+				~WinFileUpload() override
+				{
+					state->stopped = true;
+				}
+
+				bool Poll(UploadEvent& event) override
+				{
+					std::lock_guard<std::mutex> lock(state->mutex);
+					if (state->events.empty())
+						return false;
+
+					event = std::move(state->events.front());
+					state->events.pop_front();
+					return true;
+				}
+
+			private:
+				std::shared_ptr<UploadState> state;
+			};
+		}
+
+		std::unique_ptr<FileUpload> UploadFiles(std::vector<UploadJob> jobs)
+		{
+			auto state = std::make_shared<UploadState>();
+			std::thread(UploadLoop, state, std::move(jobs)).detach();
+			return std::make_unique<WinFileUpload>(state);
+		}
+
+		std::string ModulePath()
+		{
+			// The module this function is in
+			HMODULE module = nullptr;
+			if (!GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+					reinterpret_cast<LPCSTR>(&ModulePath), &module))
+				return {};
+
+			char path[MAX_PATH];
+			auto length = GetModuleFileNameA(module, path, MAX_PATH);
+			return length > 0 && length < MAX_PATH ? std::string(path, length) : std::string();
+		}
 	}
 }

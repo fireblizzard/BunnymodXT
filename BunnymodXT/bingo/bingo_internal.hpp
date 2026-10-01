@@ -1,6 +1,7 @@
 #pragma once
 
 #include <deque>
+#include <functional>
 #include <optional>
 
 #include <rapidjson/document.h>
@@ -20,6 +21,7 @@
 // bingo_run.cpp      attempts: loading a tile, its triggers, the timer, the rules, saving and loading during a run
 // bingo_net.cpp      the connection to the bingo server and its messages
 // bingo_files.cpp    downloading the manifest's files
+// bingo_demos.cpp    recording a demo of each online attempt, and sending the ones the server asks for
 // bingo_draw.cpp     drawing the board, the mini-board and the triggers
 // bingo_input.cpp    opening and closing the board, and its mouse and keys
 // bingo_rules.cpp    rulesets and handicaps (bingo_rules.hpp)
@@ -231,9 +233,22 @@ namespace Bingo
 		// Why the run no longer counts, while it keeps going (e.g. took damage in a "No Damage%" run)
 		std::string invalid_reason;
 
-		// Online: the attempt_id sent at the start trigger, empty before that
+		// Online: the attempt_id, made when the tile's save loads and sent at the start trigger
 		std::string id;
 		std::chrono::steady_clock::time_point started_at;
+
+		// Online: the demo of this attempt, <demo>_1.dem and on in the game directory
+		std::string demo;
+
+		// The random value the server sent for this attempt, written into the demo
+		std::string nonce;
+
+		// The other clocks of the result, counted from the start trigger
+		int frames = 0;
+		double stopped_time = 0;   // real time the game didn't run (loads and pauses), in seconds
+		double server_time = 0;    // how far the server's time went, in seconds
+		double last_server_time = -1;
+		std::chrono::steady_clock::time_point last_frame;
 
 		// Its result or attempt_invalidated was sent
 		bool reported = false;
@@ -301,6 +316,13 @@ namespace Bingo
 		bool connected = false;
 	};
 
+	// A demo the server asked for, and where it goes
+	struct DemoRequest
+	{
+		std::string attempt_id;
+		std::string url;
+	};
+
 	// A result the server hasn't acknowledged yet, sent again after a reconnect
 	struct PendingResult
 	{
@@ -351,7 +373,7 @@ namespace Bingo
 
 		std::vector<PendingResult> pending;
 
-		// The manifest's files (BINGO.md §3.2): checked, then downloaded if they're missing
+		// The manifest's files checked, then downloaded if they're missing
 		// ready is sent once they're all there
 		std::vector<Platform::FileJob> file_jobs;
 		std::vector<std::string> file_names; // for messages, e.g. "the save of B3"
@@ -364,6 +386,17 @@ namespace Bingo
 		int files_downloaded = 0;
 		bool files_retry = false;
 		std::chrono::steady_clock::time_point files_retry_at;
+
+		// The game, from welcome, for the demos
+		std::string game_id;
+
+		// Demos the server asked for, sent one at a time
+		std::deque<DemoRequest> demo_requests;
+		std::unique_ptr<Platform::FileUpload> upload;
+		size_t upload_parts = 0; // parts of the demo being sent
+		size_t upload_done = 0;
+		int upload_tries = 0;
+		std::chrono::steady_clock::time_point upload_retry_at;
 	};
 
 	using JsonWriter = rapidjson::Writer<rapidjson::StringBuffer>;
@@ -393,6 +426,8 @@ namespace Bingo
 	void SendAttemptStarted();
 	void SendAttemptInvalidated(const std::string& reason);
 	void SendAttemptResult(int time_ms, long long real_ms);
+	std::string DllSha256();
+	long long MatchClockMs();
 	void SetTileOwner(int index, Owner owner, int time_ms, const std::string& holder);
 	void SetContesting(int index, std::vector<Owner> teams);
 	std::string ServerUrl(std::string server, std::string& error);
@@ -400,9 +435,18 @@ namespace Bingo
 	void NetFrame();
 
 	// bingo_files.cpp
+	std::string HttpUrl(const std::string& url);
 	int FilesReady();
 	void StartFiles();
 	void FilesFrame();
+
+	// bingo_demos.cpp
+	void StartDemo();
+	void AddDemoInfo(const char* event, const std::function<void(JsonWriter&)>& write);
+	void EndDemo(bool keep);
+	void SetMapEnding(bool ending);
+	void RequestDemo(const std::string& attempt_id, const std::string& url);
+	void DemosFrame();
 
 	// bingo_draw.cpp
 	int HoveredTile();

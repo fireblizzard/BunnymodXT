@@ -201,6 +201,7 @@ set (SOURCE_FILES
 	BunnymodXT/modules/ServerDLL.cpp
 	BunnymodXT/modules/SDL.cpp
 	BunnymodXT/bingo/bingo.cpp
+	BunnymodXT/bingo/bingo_demos.cpp
 	BunnymodXT/bingo/bingo_draw.cpp
 	BunnymodXT/bingo/bingo_files.cpp
 	BunnymodXT/bingo/bingo_input.cpp

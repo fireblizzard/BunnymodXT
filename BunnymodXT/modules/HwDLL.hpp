@@ -407,6 +407,28 @@ public:
 		return true;
 	}
 
+	// Like bxt_autorecord, but only starts once the next load has finished:
+	// records <name>_1 after it, then <name>_2 after the load after that, and so on
+	void AutoRecordAfterLoad(const std::string& name)
+	{
+		autoRecordDemoName = name;
+		autoRecordDemoNumber = 1;
+		autoRecordNow = false;
+	}
+
+	// Stops AutoRecordAfterLoad or bxt_autorecord from recording more parts
+	void StopAutoRecord()
+	{
+		autoRecordDemoName.clear();
+		autoRecordNow = false;
+	}
+
+	// Whether the autorecording (bxt_autorecord or AutoRecordAfterLoad) uses this name
+	bool IsAutoRecording(const std::string& name) const
+	{
+		return !name.empty() && autoRecordDemoName == name;
+	}
+
 	HLStrafe::PlayerData GetPlayerData();
 
 protected:

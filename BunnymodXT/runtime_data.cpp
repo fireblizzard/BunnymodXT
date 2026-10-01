@@ -46,6 +46,7 @@ namespace RuntimeData
 			PLAYERHEALTH,
 			SPLIT_MARKER,
 			FLAGS,
+			BINGO_INFO,
 		};
 
 		// Encrypting filter.
@@ -367,6 +368,12 @@ namespace RuntimeData
 				archive(f.flags);
 			}
 
+			void operator()(const BingoInfo& i) const {
+				archive(RuntimeDataType::BINGO_INFO);
+
+				archive(i.json);
+			}
+
 		private:
 			Archive& archive;
 		};
@@ -489,6 +496,12 @@ namespace RuntimeData
 				data = f;
 				break;
 			}
+			case RuntimeDataType::BINGO_INFO: {
+				BingoInfo i;
+				archive(i.json);
+				data = i;
+				break;
+			}
 			default: {
 				EngineDevWarning("Read unknown RuntimeDataType %d\n", data_type);
 				break;
@@ -554,6 +567,7 @@ namespace RuntimeData
 		void operator()(const RuntimeData::Edicts& e) const {}
 		void operator()(const RuntimeData::SplitMarker& m) const {}
 		void operator()(const RuntimeData::Flags& f) const {}
+		void operator()(const RuntimeData::BingoInfo& i) const {}
 
 	private:
 		// bxt commands that should be executed when found during demo playback

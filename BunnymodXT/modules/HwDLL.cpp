@@ -4185,6 +4185,9 @@ struct HwDLL::Cmd_BXT_Record
 
 	static void handler(const char *demoName)
 	{
+		if (!Bingo::AllowDemoCommand("bxt_record", demoName))
+			return;
+
 		auto &hw = HwDLL::GetInstance();
 		hw.recordDemoName.clear();
 		hw.recordDemoName.assign(demoName);
@@ -4197,6 +4200,9 @@ struct HwDLL::Cmd_BXT_AutoRecord
 
 	static void handler(const char *demoName)
 	{
+		if (!Bingo::AllowDemoCommand("bxt_autorecord", demoName))
+			return;
+
 		auto &hw = HwDLL::GetInstance();
 		hw.autoRecordDemoName.assign(demoName);
 		hw.autoRecordDemoNumber = 1;
@@ -7939,6 +7945,12 @@ HOOK_DEF_0(HwDLL, void, __cdecl, SV_Frame)
 
 HOOK_DEF_0(HwDLL, void, __cdecl, CL_Stop_f)
 {
+	// Block the stop command on bingo
+	// The engine also calls this when loading, disconnecting or quitting
+	if (ORIG_Cmd_Argc && ORIG_Cmd_Argv && ORIG_Cmd_Argc() > 0 && !std::strcmp(ORIG_Cmd_Argv(0), "stop")
+		&& !Bingo::AllowDemoCommand("stop", ""))
+		return;
+
 	if (!insideHost_Loadgame_f && !insideHost_Reload_f && !dontStopAutorecord) {
 		autoRecordNow = false;
 		autoRecordDemoName.clear();
@@ -8017,6 +8029,9 @@ HOOK_DEF_4(HwDLL, void*, __cdecl, NLoadBlobFileClient, const char*, pstFileName,
 
 HOOK_DEF_0(HwDLL, void, __cdecl, CL_Record_f)
 {
+	if (!Bingo::AllowDemoCommand("record", ORIG_Cmd_Argc && ORIG_Cmd_Argv && ORIG_Cmd_Argc() > 1 ? ORIG_Cmd_Argv(1) : ""))
+		return;
+
 	RuntimeData::Clear();
 
 	ORIG_CL_Record_f();

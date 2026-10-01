@@ -10,21 +10,10 @@ namespace Bingo
 		constexpr long long FILES_RETRY_MS = 15000;
 
 		// Where a file is downloaded from: <files_url><sha256>
-		// A files_url like /files/ is on the server BXT connected to, ws://host/bxt -> http://host/files/
 		std::string FileUrl(const std::string& sha256)
 		{
-			auto base = manifest.files_url.empty() ? std::string("/files/") : manifest.files_url;
-			if (base[0] == '/') {
-				auto scheme_end = net.url.find("://");
-				if (scheme_end == std::string::npos)
-					return {};
-
-				auto host_end = net.url.find('/', scheme_end + 3);
-				auto host = net.url.substr(scheme_end, host_end == std::string::npos ? std::string::npos : host_end - scheme_end);
-				base = (net.url.compare(0, scheme_end, "wss") == 0 ? "https" : "http") + host + base;
-			}
-
-			return base + sha256;
+			auto base = HttpUrl(manifest.files_url.empty() ? std::string("/files/") : manifest.files_url);
+			return base.empty() ? std::string() : base + sha256;
 		}
 
 		void SendDownloadProgress()
@@ -64,6 +53,22 @@ namespace Bingo
 				Print("%s\n", text.c_str());
 			}
 		}
+	}
+
+	// An address from the server as a full one: a path like /files/ is on the server BXT connected to,
+	// ws://host/bxt -> http://host/files/
+	std::string HttpUrl(const std::string& url)
+	{
+		if (url.empty() || url[0] != '/')
+			return url;
+
+		auto scheme_end = net.url.find("://");
+		if (scheme_end == std::string::npos)
+			return {};
+
+		auto host_end = net.url.find('/', scheme_end + 3);
+		auto host = net.url.substr(scheme_end, host_end == std::string::npos ? std::string::npos : host_end - scheme_end);
+		return (net.url.compare(0, scheme_end, "wss") == 0 ? "https" : "http") + host + url;
 	}
 
 	int FilesReady()

@@ -10,7 +10,7 @@
 #include "../git_revision.hpp"
 #include "bingo_internal.hpp"
 
-// Networking (BINGO.md §4.2, §6): one WebSocket to the bingo server
+// Networking, one WebSocket to the bingo server
 // The platform layer runs it on worker threads, and Frame() handles what comes in on the game thread
 
 namespace Bingo
@@ -105,7 +105,11 @@ namespace Bingo
 				w.Key("engine_build");
 				w.String(EngineBuild());
 				w.Key("dll_sha256");
-				w.Null();
+				auto dll_sha256 = DllSha256();
+				if (dll_sha256.empty())
+					w.Null();
+				else
+					w.String(dll_sha256.c_str());
 				w.Key("steamid64");
 				w.Null();
 			});
@@ -189,6 +193,7 @@ namespace Bingo
 
 			bool rejoined = !net.session_token.empty();
 			net.session_token = JsonString(doc, "session_token");
+			net.game_id = JsonString(doc, "game_id");
 			net.steamid64 = JsonString(player->value, "steamid64");
 			net.name = CleanText(JsonString(player->value, "name"));
 			my_team = JsonTeam(player->value, "team");
@@ -406,6 +411,19 @@ namespace Bingo
 				Notify(Event::INVALID, run + " was rejected" + (detail.empty() ? "." : ": " + detail + "."));
 		}
 
+		// The server's random value for the run, written into its demo so an older demo can't stand in for it
+		void OnAttemptNonce(const rapidjson::Value& doc)
+		{
+			if (JsonString(doc, "attempt_id") != attempt.id)
+				return;
+
+			attempt.nonce = JsonString(doc, "nonce");
+			AddDemoInfo("nonce", [&](JsonWriter& w) {
+				w.Key("nonce");
+				w.String(attempt.nonce.c_str());
+			});
+		}
+
 		void OnGameOver(const rapidjson::Value& doc)
 		{
 			auto winner = JsonTeam(doc, "winner");
@@ -450,8 +468,10 @@ namespace Bingo
 				ShowMessage(CleanText(JsonString(doc, "text")));
 			else if (type == "result_ack")
 				OnResultAck(doc);
+			else if (type == "attempt_nonce")
+				OnAttemptNonce(doc);
 			else if (type == "request_demo")
-				EngineDevMsg("[bingo] The server asked for a demo, which comes with evidence (BINGO.md §9 step 7).\n");
+				RequestDemo(JsonString(doc, "attempt_id"), JsonString(doc, "upload_url"));
 			else if (type == "game_over")
 				OnGameOver(doc);
 			else if (type == "error")
@@ -701,7 +721,7 @@ namespace Bingo
 	}
 
 	// Kept until the server acknowledges it, and sent again after a reconnect
-	// The other clocks come with evidence (BINGO.md §9 step 7): until then the server clock check
+	// The other clocks come with evidence, until then the server clock check
 	// gets the real time, with everything but the game time counted as loading
 	void SendAttemptResult(int time_ms, long long real_ms)
 	{
@@ -720,24 +740,51 @@ namespace Bingo
 			w.Key("time_ms");
 			w.Int(time_ms);
 			w.Key("server_time_delta_ms");
-			w.Int(time_ms);
+			w.Int64(std::llround(attempt.server_time * 1000));
 			w.Key("frames");
-			w.Int(0);
+			w.Int(attempt.frames);
 			w.Key("real_ms");
 			w.Int64(real_ms);
 			w.Key("load_ms");
-			w.Int64(real_ms - time_ms);
+			w.Int64(std::llround(attempt.stopped_time * 1000));
 			w.Key("save_sha256");
 			w.String(manifest.tiles[current_tile].save_sha256.c_str());
 			w.Key("ruleset_ok");
 			w.Bool(true);
 			w.Key("demo");
-			w.Null();
+			if (attempt.demo.empty())
+				w.Null();
+			else
+				w.String(attempt.demo.c_str());
 		});
 
 		net.pending.push_back(result);
 		SaveSession();
 		NetSend(result.message);
+	}
+
+	// SHA-256 of BXT's own DLL, or an empty string if it can't be read
+	std::string DllSha256()
+	{
+		static std::string hash;
+		static bool hashed = false;
+		if (!hashed) {
+			hashed = true;
+			auto path = Platform::ModulePath();
+			uint64_t size;
+			if (!path.empty())
+				hash = Platform::Sha256File(path, size);
+		}
+		return hash;
+	}
+
+	// The match clock now, from the last board, or -1 before the first one
+	long long MatchClockMs()
+	{
+		if (net.board_seq < 0)
+			return -1;
+
+		return net.clock_ms + std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - net.clock_received).count();
 	}
 
 	// A tile's new holder, the way a board update from the server brings it
