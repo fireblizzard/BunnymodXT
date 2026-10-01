@@ -37,6 +37,11 @@ namespace Bingo
 	// Returns false when the engine must not run it (a command blocked by a handicap)
 	bool OnPlayerCommand(const char* text);
 
+	// Call when the engine runs a command, with its first two words (argument can be nullptr)
+	// Returns false when the engine must not run it (a command blocked by a handicap)
+	// Also sees what OnPlayerCommand doesn't, like the console, configs and aliases
+	bool AllowCommand(const char* name, const char* argument);
+
 	// Call from the stop, record, bxt_record and bxt_autorecord commands before they run, with the demo's name
 	// Returns false when the command must not run, as bingo is recording an online run
 	bool AllowDemoCommand(const char* command, const char* demo_name);

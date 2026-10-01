@@ -5951,6 +5951,8 @@ void HwDLL::RegisterCVarsAndCommandsIfNeeded()
 	RegisterCVar(CVars::bxt_bingo_show_triggers);
 	RegisterCVar(CVars::bxt_bingo_color_start_trigger);
 	RegisterCVar(CVars::bxt_bingo_color_end_trigger);
+	RegisterCVar(CVars::bxt_bingo_color_requirement);
+	RegisterCVar(CVars::bxt_bingo_color_requirement_done);
 	RegisterCVar(CVars::bxt_bingo_triggers_fill_alpha);
 	RegisterCVar(CVars::bxt_bingo_triggers_edge_alpha);
 	RegisterCVar(CVars::bxt_bingo_messages);
@@ -5960,6 +5962,8 @@ void HwDLL::RegisterCVarsAndCommandsIfNeeded()
 	RegisterCVar(CVars::bxt_bingo_sound_opponent_capture);
 	RegisterCVar(CVars::bxt_bingo_sound_contested);
 	RegisterCVar(CVars::bxt_bingo_sound_invalid);
+	RegisterCVar(CVars::bxt_bingo_sound_requirement);
+	RegisterCVar(CVars::bxt_bingo_sound_requirement_left);
 	RegisterCVar(CVars::bxt_bingo_sound_win);
 	RegisterCVar(CVars::_bxt_bingo_debug_input);
 	RegisterCVar(CVars::bxt_fade_remove);
@@ -8076,6 +8080,14 @@ HOOK_DEF_1(HwDLL, void, __cdecl, Cmd_TokenizeString, char*, text)
 	ORIG_Cmd_TokenizeString(text);
 
 	if (insideCbuf_Execute && ORIG_Cmd_Argc() > 0) {
+		// Bingo's handicaps block commands wherever they come from
+		// Cmd_ExecuteString runs nothing when there are no words
+		if (!Bingo::AllowCommand(ORIG_Cmd_Argv(0), ORIG_Cmd_Argc() > 1 ? ORIG_Cmd_Argv(1) : nullptr)) {
+			static char nothing[] = "";
+			ORIG_Cmd_TokenizeString(nothing);
+			return;
+		}
+
 		auto command = ORIG_Cmd_Argv(0);
 
 		for (auto alias = cmd_alias; alias; alias = alias->next) {

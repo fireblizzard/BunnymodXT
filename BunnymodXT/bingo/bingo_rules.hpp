@@ -72,5 +72,8 @@ namespace Bingo
 
 		// The first blocked command the text runs, or an empty string
 		std::string FindBlockedCommand(const Ruleset& ruleset, const std::string& text);
+
+		// Whether one command is blocked, from the words the engine split it into
+		bool IsBlockedCommand(const Ruleset& ruleset, const std::vector<std::string>& words);
 	}
 }

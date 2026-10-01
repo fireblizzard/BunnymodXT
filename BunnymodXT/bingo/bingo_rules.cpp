@@ -598,5 +598,10 @@ namespace Bingo
 
 			return {};
 		}
+
+		bool IsBlockedCommand(const Ruleset& ruleset, const std::vector<std::string>& words)
+		{
+			return !words.empty() && IsInList(ruleset.blocked_commands, words);
+		}
 	}
 }

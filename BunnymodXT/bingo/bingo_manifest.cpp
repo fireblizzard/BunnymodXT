@@ -56,6 +56,62 @@ namespace Bingo
 			return true;
 		}
 
+		// Missing means none, like on boards made before requirements were a thing
+		bool ParseRequirements(const rapidjson::Value& value, std::vector<Requirement>& result, std::string& error)
+		{
+			auto list = value.FindMember("requirements");
+			if (list == value.MemberEnd())
+				return true;
+
+			if (!list->value.IsArray()) {
+				error = "\"requirements\" must be a list";
+				return false;
+			}
+
+			for (const auto& item : list->value.GetArray()) {
+				if (!item.IsObject()) {
+					error = "every requirement must be an object";
+					return false;
+				}
+
+				Requirement requirement;
+				std::string type;
+				if (!GetString(item, "type", type, error) || !GetString(item, "text", requirement.text, error)) {
+					error = "requirement: " + error;
+					return false;
+				}
+
+				if (type == "area") {
+					requirement.type = Requirement::Type::AREA;
+					if (!ParseTriggerBox(item, requirement.area, error)) {
+						error = "requirement \"" + requirement.text + "\": " + error;
+						return false;
+					}
+				} else if (type == "health" || type == "armor") {
+					requirement.type = type == "health" ? Requirement::Type::HEALTH : Requirement::Type::ARMOR;
+					auto min = item.FindMember("min");
+					if (min == item.MemberEnd() || !min->value.IsInt()) {
+						error = "requirement \"" + requirement.text + "\": \"min\" must be a whole number";
+						return false;
+					}
+					requirement.min = min->value.GetInt();
+				} else if (type == "weapon") {
+					requirement.type = Requirement::Type::WEAPON;
+					if (!GetString(item, "weapon", requirement.weapon, error)) {
+						error = "requirement \"" + requirement.text + "\": " + error;
+						return false;
+					}
+				} else {
+					error = "unknown requirement type \"" + type + "\"";
+					return false;
+				}
+
+				result.push_back(std::move(requirement));
+			}
+
+			return true;
+		}
+
 		bool ParseTile(const rapidjson::Value& value, int& index, Tile& tile, std::string& error)
 		{
 			if (!value.IsObject()) {
@@ -150,6 +206,11 @@ namespace Bingo
 				return false;
 			} else if (!ParseTriggerBox(end->value, tile.end, error)) {
 				error = "tile " + id + ": end: " + error;
+				return false;
+			}
+
+			if (!ParseRequirements(value, tile.requirements, error)) {
+				error = "tile " + id + ": " + error;
 				return false;
 			}
 

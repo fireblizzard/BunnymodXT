@@ -45,6 +45,24 @@ namespace Bingo
 		std::array<std::array<float, 3>, 2> corners = {};
 	};
 
+	// Something the player has to do in a run before the end trigger counts
+	struct Requirement
+	{
+		enum class Type
+		{
+			AREA,   // go through the box after the start
+			HEALTH, // at least min health at the end
+			ARMOR,  // at least min armor at the end
+			WEAPON  // have the weapon at the end
+		};
+
+		Type type = Type::AREA;
+		std::string text;
+		TriggerBox area;
+		int min = 0;
+		std::string weapon; // e.g. weapon_crossbow
+	};
+
 	struct Tile
 	{
 		// From the manifest
@@ -55,6 +73,7 @@ namespace Bingo
 		bool end_on_game_end = false; // otherwise the end trigger stops the timer, e.g. Nihilanth's death
 		TriggerBox start;
 		TriggerBox end;
+		std::vector<Requirement> requirements;
 
 		// Board state, from the server
 		Owner owner = Owner::NONE;
@@ -108,7 +127,9 @@ namespace Bingo
 		OPPONENT_CAPTURE, // the other team took a tile
 		CONTESTED,        // an opponent picked the tile you're playing
 		INVALID,          // your run was cancelled or no longer counts
-		WIN               // a team won the game
+		WIN,              // a team won the game
+		REQUIREMENT,      // you did one of the run's requirements
+		REQUIREMENT_LEFT  // you reached the end with requirements left
 	};
 
 	struct Message
@@ -255,36 +276,53 @@ namespace Bingo
 
 		// Enemy monsters the player killed since the start trigger, for Bloodthirsty
 		int kills = 0;
+
+		// The tile's area requirements the player went through since the start trigger, by requirement
+		std::vector<bool> areas_done;
 	};
 
-	// A tile's start or end trigger, only counted on its map (any map when the map is empty)
+	// A tile's start, end or area requirement trigger, only counted on its map (any map when the map is empty)
 	class TileTrigger : public CustomTriggers::Trigger
 	{
 	public:
-		TileTrigger(const TriggerBox& box, bool is_end)
+		enum class Kind
+		{
+			START,
+			END,
+			REQUIREMENT
+		};
+
+		TileTrigger(const TriggerBox& box, Kind kind, int requirement = -1)
 			: CustomTriggers::Trigger(
 				Vector(box.corners[0][0], box.corners[0][1], box.corners[0][2]),
 				Vector(box.corners[1][0], box.corners[1][1], box.corners[1][2]))
+			, kind(kind)
+			, requirement(requirement)
 			, map(box.map)
-			, is_end(is_end)
 		{
 		}
 
 		// Whether it's on the current map
 		bool counts_here() const;
 
+		const Kind kind;
+		const int requirement; // its index in the tile's requirements, for REQUIREMENT
+
 	protected:
 		void touch() override;
 
 	private:
 		std::string map;
-		bool is_end;
 	};
 
 	extern Attempt attempt;
 	extern std::optional<TileTrigger> start_trigger;
 	extern std::optional<TileTrigger> end_trigger;
+	extern std::vector<TileTrigger> requirement_triggers;
 
+	void ClearTriggers();
+	bool RequirementMet(int index);
+	int RequirementValue(int index);
 	bool IsAttemptActive();
 	int TimerMs();
 	void CancelAttempt(const char* reason, bool notify = true);

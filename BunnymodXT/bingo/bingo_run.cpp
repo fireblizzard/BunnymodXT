@@ -135,6 +135,57 @@ namespace Bingo
 				CancelAttempt(violation.c_str());
 		}
 
+		bool HasWeapon(const std::string& weapon)
+		{
+			auto& hw = HwDLL::GetInstance();
+			auto pl = hw.GetPlayerEdict();
+			if (!pl)
+				return false;
+
+			edict_t* edicts;
+			int count = hw.GetEdicts(&edicts);
+			for (int i = 1; i < count; ++i) {
+				const auto ent = edicts + i;
+				if (hw.IsValidEdict(ent) && ent->v.owner == pl && weapon == hw.GetString(ent->v.classname))
+					return true;
+			}
+
+			return false;
+		}
+
+		std::string RequirementsLeft()
+		{
+			std::string text;
+			const auto& requirements = manifest.tiles[current_tile].requirements;
+			for (size_t i = 0; i < requirements.size(); ++i) {
+				if (!RequirementMet(static_cast<int>(i)))
+					text += (text.empty() ? "" : ", ") + requirements[i].text;
+			}
+
+			return text;
+		}
+
+		// The player went through an area requirement
+		void OnRequirementTrigger(int index)
+		{
+			if (attempt.state != AttemptState::RUNNING || index < 0 || index >= static_cast<int>(attempt.areas_done.size()) || attempt.areas_done[index])
+				return;
+
+			attempt.areas_done[index] = true;
+			const auto& requirements = manifest.tiles[current_tile].requirements;
+			int met = 0;
+			for (size_t i = 0; i < requirements.size(); ++i)
+				met += RequirementMet(static_cast<int>(i));
+
+			AddDemoInfo("requirement", [&](JsonWriter& w) {
+				w.Key("index");
+				w.Int(index);
+				w.Key("text");
+				w.String(requirements[index].text.c_str());
+			});
+			Notify(Event::REQUIREMENT, requirements[index].text + ": done (" + std::to_string(met) + "/" + std::to_string(requirements.size()) + ").");
+		}
+
 		// The timer starts. When online the server starts timing the run too
 		void BeginRun()
 		{
@@ -143,6 +194,8 @@ namespace Bingo
 			attempt.started_at = std::chrono::steady_clock::now();
 			attempt.reported = false;
 			attempt.kills = 0;
+			// Areas only count from the start trigger on
+			attempt.areas_done.assign(manifest.tiles[current_tile].requirements.size(), false);
 			attempt.frames = 0;
 			attempt.stopped_time = 0;
 			attempt.server_time = 0;
@@ -223,12 +276,20 @@ namespace Bingo
 
 			const auto& tile = manifest.tiles[current_tile];
 			if (!tile.end_on_game_end)
-				end_trigger.emplace(tile.end, true);
+				end_trigger.emplace(tile.end, TileTrigger::Kind::END);
+
+			requirement_triggers.clear();
+			for (size_t i = 0; i < tile.requirements.size(); ++i) {
+				if (tile.requirements[i].type == Requirement::Type::AREA)
+					requirement_triggers.emplace_back(tile.requirements[i].area, TileTrigger::Kind::REQUIREMENT, static_cast<int>(i));
+			}
+			attempt.areas_done.assign(tile.requirements.size(), false);
+
 			if (tile.start_on_load) {
 				start_trigger.reset();
 				BeginRun();
 			} else {
-				start_trigger.emplace(tile.start, false);
+				start_trigger.emplace(tile.start, TileTrigger::Kind::START);
 				attempt.state = AttemptState::ARMED;
 			}
 		}
@@ -270,6 +331,16 @@ namespace Bingo
 		{
 			if (attempt.state != AttemptState::RUNNING)
 				return;
+
+			// The end only counts once every requirement is met, until then the run keeps going
+			auto left = RequirementsLeft();
+			if (!left.empty()) {
+				if (manifest.tiles[current_tile].end_on_game_end)
+					CancelAttempt(("the game ended before these were done: " + left).c_str());
+				else
+					Notify(Event::REQUIREMENT_LEFT, "Not finished yet, still to do: " + left + ".");
+				return;
+			}
 
 			CountClocks();
 			attempt.state = AttemptState::FINISHED;
@@ -348,8 +419,7 @@ namespace Bingo
 			if (Online() && !manifest.tiles[current_tile].playable) {
 				CancelAttempt("your team can't play the tile now", false);
 				attempt.state = AttemptState::IDLE;
-				start_trigger.reset();
-				end_trigger.reset();
+				ClearTriggers();
 				Print("%s can't be played by your team now, pick another tile.\n", TileName(current_tile).c_str());
 				return;
 			}
@@ -377,8 +447,8 @@ namespace Bingo
 			ResetTimer();
 			attempt.saw_loading = false;
 			attempt.load_started = std::chrono::steady_clock::now();
-			start_trigger.reset();
-			end_trigger.reset();
+			ClearTriggers();
+			attempt.areas_done.clear();
 			run_saves.clear();
 			attempt.invalid_reason.clear();
 			attempt.id.clear();
@@ -526,6 +596,49 @@ namespace Bingo
 	// The current tile's triggers, separate from bxt_triggers_* so the player's own can't touch a run
 	std::optional<TileTrigger> start_trigger;
 	std::optional<TileTrigger> end_trigger;
+	std::vector<TileTrigger> requirement_triggers;
+
+	void ClearTriggers()
+	{
+		start_trigger.reset();
+		end_trigger.reset();
+		requirement_triggers.clear();
+	}
+
+	// Whether a requirement of the current tile is met now
+	// Areas once the player went through them, the others by how the player is right now
+	bool RequirementMet(int index)
+	{
+		if (current_tile < 0 || index < 0 || index >= static_cast<int>(manifest.tiles[current_tile].requirements.size()))
+			return false;
+
+		const auto& requirement = manifest.tiles[current_tile].requirements[index];
+		if (requirement.type == Requirement::Type::AREA)
+			return index < static_cast<int>(attempt.areas_done.size()) && attempt.areas_done[index];
+
+		if (requirement.type == Requirement::Type::WEAPON)
+			return HasWeapon(requirement.weapon);
+
+		auto value = RequirementValue(index);
+		return value >= 0 && value >= requirement.min;
+	}
+
+	// The health or armor a requirement checks, as the player has it now, or -1
+	int RequirementValue(int index)
+	{
+		auto pl = HwDLL::GetInstance().GetPlayerEdict();
+		if (current_tile < 0 || index < 0 || index >= static_cast<int>(manifest.tiles[current_tile].requirements.size()) || !pl)
+			return -1;
+
+		switch (manifest.tiles[current_tile].requirements[index].type) {
+		case Requirement::Type::HEALTH:
+			return static_cast<int>(pl->v.health);
+		case Requirement::Type::ARMOR:
+			return static_cast<int>(pl->v.armorvalue);
+		default:
+			return -1;
+		}
+	}
 
 	bool IsAttemptActive()
 	{
@@ -604,10 +717,17 @@ namespace Bingo
 		if (!counts_here())
 			return;
 
-		if (is_end)
-			OnEndTrigger();
-		else
+		switch (kind) {
+		case Kind::START:
 			OnStartTrigger();
+			break;
+		case Kind::END:
+			OnEndTrigger();
+			break;
+		case Kind::REQUIREMENT:
+			OnRequirementTrigger(requirement);
+			break;
+		}
 	}
 
 	// Copies the tile's save to the retry save and loads it, which arms the attempt
@@ -661,6 +781,8 @@ namespace Bingo
 		auto handicaps = Handicaps();
 		if (!handicaps.empty())
 			Print("Your handicaps: %s.\n", handicaps.c_str());
+		for (size_t i = 0; i < tile.requirements.size(); ++i)
+			Print("%s %d. %s\n", i == 0 ? "Requirements:" : "             ", static_cast<int>(i) + 1, tile.requirements[i].text.c_str());
 		auto command = "load " + retry_save + "\n";
 		ClientDLL::GetInstance().pEngfuncs->pfnClientCmd(const_cast<char*>(command.c_str()));
 	}
@@ -692,10 +814,13 @@ namespace Bingo
 		CheckDeath();
 	}
 
+	// The requirements go before the end, so passing one and the end in the same frame finishes the run
 	void UpdateTriggers(const Vector& player_position, bool ducking)
 	{
 		if (start_trigger)
 			start_trigger->update(player_position, ducking);
+		for (auto& trigger : requirement_triggers)
+			trigger.update(player_position, ducking);
 		if (end_trigger)
 			end_trigger->update(player_position, ducking);
 	}
@@ -704,6 +829,8 @@ namespace Bingo
 	{
 		if (start_trigger)
 			start_trigger->update(player_position_start, player_position_end, ducking);
+		for (auto& trigger : requirement_triggers)
+			trigger.update(player_position_start, player_position_end, ducking);
 		if (end_trigger)
 			end_trigger->update(player_position_start, player_position_end, ducking);
 	}
@@ -766,5 +893,21 @@ namespace Bingo
 			CancelAttempt(violation.c_str());
 
 		return true;
+	}
+
+	bool AllowCommand(const char* name, const char* argument)
+	{
+		if (!IsAttemptActive() || manifest.ruleset.blocked_commands.empty())
+			return true;
+
+		std::vector<std::string> words { name };
+		if (argument)
+			words.emplace_back(argument);
+
+		if (!Rules::IsBlockedCommand(manifest.ruleset, words))
+			return true;
+
+		Print("%s is blocked for you in this game.\n", name);
+		return false;
 	}
 }

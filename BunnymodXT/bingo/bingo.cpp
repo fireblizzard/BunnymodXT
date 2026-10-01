@@ -43,6 +43,10 @@ namespace Bingo
 				return CVars::bxt_bingo_sound_contested;
 			case Event::INVALID:
 				return CVars::bxt_bingo_sound_invalid;
+			case Event::REQUIREMENT:
+				return CVars::bxt_bingo_sound_requirement;
+			case Event::REQUIREMENT_LEFT:
+				return CVars::bxt_bingo_sound_requirement_left;
 			case Event::WIN:
 				break;
 			}
@@ -352,8 +356,7 @@ namespace Bingo
 		// The server sends the board, the local one goes
 		CancelAttempt("joined an online game", false);
 		attempt.state = AttemptState::IDLE;
-		start_trigger.reset();
-		end_trigger.reset();
+		ClearTriggers();
 		CloseBoard(true);
 		manifest = Manifest();
 		current_tile = -1;
@@ -412,8 +415,7 @@ namespace Bingo
 
 		CancelAttempt("loaded another board", false);
 		attempt.state = AttemptState::IDLE;
-		start_trigger.reset();
-		end_trigger.reset();
+		ClearTriggers();
 
 		manifest = std::move(loaded);
 		current_tile = -1;
@@ -453,8 +455,7 @@ namespace Bingo
 
 		CancelAttempt("left the board", false);
 		attempt.state = AttemptState::IDLE;
-		start_trigger.reset();
-		end_trigger.reset();
+		ClearTriggers();
 		CloseBoard(true);
 
 		manifest = Manifest();

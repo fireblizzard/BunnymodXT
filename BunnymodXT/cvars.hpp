@@ -202,7 +202,7 @@
 	X(bxt_hud_split_fadeout, "5") \
 	X(bxt_hud_bingo, "1") \
 	X(bxt_hud_bingo_offset, "") \
-	X(bxt_hud_bingo_anchor, "0.01 0.6") \
+	X(bxt_hud_bingo_anchor, "0.01 0.1") \
 	X(bxt_cross, "0") \
 	X(bxt_cross_color, "") \
 	X(bxt_cross_alpha, "") \
@@ -246,6 +246,8 @@
 	X(bxt_bingo_show_triggers, "1") \
 	X(bxt_bingo_color_start_trigger, "255 105 180") \
 	X(bxt_bingo_color_end_trigger, "255 200 40") \
+	X(bxt_bingo_color_requirement, "80 200 255") \
+	X(bxt_bingo_color_requirement_done, "80 220 80") \
 	X(bxt_bingo_triggers_fill_alpha, "0.04") \
 	X(bxt_bingo_triggers_edge_alpha, "0.2") \
 	X(bxt_bingo_messages, "1") \
@@ -255,6 +257,8 @@
 	X(bxt_bingo_sound_opponent_capture, "fvox/blip") \
 	X(bxt_bingo_sound_contested, "fvox/danger") \
 	X(bxt_bingo_sound_invalid, "fvox/beep") \
+	X(bxt_bingo_sound_requirement, "buttons/bell1") \
+	X(bxt_bingo_sound_requirement_left, "buttons/button10") \
 	X(bxt_bingo_sound_win, "bingo/firework") \
 	X(_bxt_bingo_debug_input, "0") \
 	X(bxt_ch_hook_speed, "869") \

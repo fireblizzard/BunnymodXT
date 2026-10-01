@@ -21,6 +21,8 @@ namespace Bingo
 		constexpr Rgb DEFAULT_SELECTED = { 255, 255, 255 };
 		constexpr Rgb DEFAULT_START_TRIGGER = { 255, 105, 180 };
 		constexpr Rgb DEFAULT_END_TRIGGER = { 255, 200, 40 };
+		constexpr Rgb DEFAULT_REQUIREMENT = { 80, 200, 255 };
+		constexpr Rgb DEFAULT_REQUIREMENT_DONE = { 80, 220, 80 };
 
 		SCREENINFO GetScreenInfo()
 		{
@@ -490,6 +492,12 @@ namespace Bingo
 			draw(*start_trigger, CvarColor(CVars::bxt_bingo_color_start_trigger, DEFAULT_START_TRIGGER));
 		if (end_trigger)
 			draw(*end_trigger, CvarColor(CVars::bxt_bingo_color_end_trigger, DEFAULT_END_TRIGGER));
+
+		// Areas change color once the player went through them
+		auto requirement = CvarColor(CVars::bxt_bingo_color_requirement, DEFAULT_REQUIREMENT);
+		auto done = CvarColor(CVars::bxt_bingo_color_requirement_done, DEFAULT_REQUIREMENT_DONE);
+		for (const auto& trigger : requirement_triggers)
+			draw(trigger, RequirementMet(trigger.requirement) ? done : requirement);
 	}
 
 	void DrawMiniBoard(int x, int y)
@@ -574,6 +582,32 @@ namespace Bingo
 			messages.pop_front();
 
 		int line_y = y + board_size + 4 + si.iCharHeight * 3;
+
+		// The run's requirements, ticked as they're met, with the health or armor the player has now
+		if (current_tile >= 0 && attempt.state != AttemptState::IDLE && !manifest.tiles[current_tile].requirements.empty()) {
+			const auto& requirements = manifest.tiles[current_tile].requirements;
+			DrawText(x, line_y, "Requirements", 1.0f, 0.7f, 0.1f);
+			line_y += si.iCharHeight;
+
+			auto done = CvarColor(CVars::bxt_bingo_color_requirement_done, DEFAULT_REQUIREMENT_DONE);
+			for (size_t i = 0; i < requirements.size(); ++i) {
+				int index = static_cast<int>(i);
+				bool met = RequirementMet(index);
+				auto text = (met ? "[x] " : "[ ] ") + requirements[i].text;
+				auto value = RequirementValue(index);
+				if (!met && value >= 0)
+					text += " (now " + std::to_string(value) + ")";
+
+				if (met)
+					DrawText(x + 8, line_y, text, done.r / 255.0f, done.g / 255.0f, done.b / 255.0f);
+				else
+					DrawText(x + 8, line_y, text, 1.0f, 1.0f, 1.0f);
+				line_y += si.iCharHeight;
+			}
+
+			line_y += si.iCharHeight / 2;
+		}
+
 		for (const auto& message : messages) {
 			auto age = std::chrono::duration_cast<std::chrono::milliseconds>(now - message.shown).count();
 			float fade = std::min(1.0f, (MESSAGE_MS - age) / 1000.0f);
